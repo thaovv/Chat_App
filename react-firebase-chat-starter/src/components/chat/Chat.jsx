@@ -5,8 +5,6 @@ import { onSnapshot, updateDoc, doc, arrayUnion, getDoc } from "firebase/firesto
 import { db } from "../../lib/firebase";
 import { useChatStore } from "../../lib/chatStore";
 import { useUserStore } from "../../lib/userStore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { storage } from "../../lib/firebase"; // Đảm bảo bạn đã cấu hình Firebase Storage
 
 const Chat = () => {
     const [open, setOpen] = useState(false);
@@ -34,53 +32,43 @@ const Chat = () => {
         };
     }, [chatId]);
 
-    // Hàm upload ảnh lên Firebase Storage
-    const upload = async (file) => {
-        const storageRef = ref(storage, `chat-images/${file.name}`);
-        await uploadBytes(storageRef, file);
-        const url = await getDownloadURL(storageRef);
-        return url;
-    };
-
     const handleEmoji = (e) => {
         setText((prev) => prev + e.emoji);
         setOpen(false);
     };
 
     const handleImage = (e) => {
-        if (e.target.files[0]) {
-            setImg({
-                file: e.target.files[0],
-                url: URL.createObjectURL(e.target.files[0]),
-            });
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setImg({
+                    file,
+                    url: reader.result, // base64 string
+                });
+            };
+            reader.readAsDataURL(file);
         }
     };
 
     const handleSend = async () => {
-        if (text.trim() === "") return; // Kiểm tra tin nhắn rỗng
+        if (!text.trim() && !img.url) return;
 
         if (!currentUser || !currentUser.id) {
             console.error("Current user is not defined");
             return;
         }
 
-        let imgUrl = null;
-
         try {
-            if (img.file) {
-                imgUrl = await upload(img.file);
-            }
-
             await updateDoc(doc(db, "chats", chatId), {
                 messages: arrayUnion({
                     text,
                     senderId: currentUser.id,
                     createAt: new Date(),
-                    ...(imgUrl && { img: imgUrl }),
+                    ...(img.url && { img: img.url }), // Gửi chuỗi base64
                 }),
             });
 
-            // Kiểm tra người dùng
             if (!user) {
                 console.error("Chat user is not defined");
                 return;
@@ -88,7 +76,6 @@ const Chat = () => {
 
             const userIDs = [currentUser.id, user.id];
 
-            //Cập nhật trạng thái của người dùng trong danh sách chat
             userIDs.forEach(async (id) => {
                 const userChatRef = doc(db, "userchats", id);
                 const userChatsSnapshot = await getDoc(userChatRef);
@@ -99,23 +86,20 @@ const Chat = () => {
                         (c) => c.chatId === chatId
                     );
                     userChatsData.chats[chatIndex].lastMessage = text;
-                    userChatsData.chats[chatIndex].isSeen = id === currentUser.id ? false : true;
+                    userChatsData.chats[chatIndex].isSeen = id === currentUser.id;
                     userChatsData.chats[chatIndex].updateAt = Date.now();
+
                     await updateDoc(userChatRef, {
                         chats: userChatsData.chats,
                     });
                 }
             });
-            
 
         } catch (err) {
             console.error(err);
         }
 
-        setImg({
-            file: null,
-            url: "",
-        });
+        setImg({ file: null, url: "" });
         setText("");
     };
 
@@ -136,8 +120,11 @@ const Chat = () => {
                 </div>
             </div>
             <div className="center">
-                {chats?.messages?.map((message) => (
-                    <div className={message.senderId === currentUser?.id ? "messageown" : "message"} key={message?.createAt}>
+                {chats?.messages?.map((message, index) => (
+                    <div
+                        className={message.senderId === currentUser?.id ? "messageown" : "message"}
+                        key={index}
+                    >
                         <div className="texts">
                             {message.img && <img src={message.img} alt="" />}
                             <p>{message.text}</p>
@@ -184,7 +171,11 @@ const Chat = () => {
                         <EmojiPicker open={open} onEmojiClick={handleEmoji} />
                     </div>
                 </div>
-                <button className="sendButton" onClick={handleSend} disabled={isCurrentUserBlocked || isReceiverBlocked}>
+                <button
+                    className="sendButton"
+                    onClick={handleSend}
+                    disabled={isCurrentUserBlocked || isReceiverBlocked}
+                >
                     Send
                 </button>
             </div>

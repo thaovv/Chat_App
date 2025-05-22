@@ -61,8 +61,8 @@ const ChatList = () => {
                 chats: userChats,
             });
             changeChat(chat.chatId, chat.user);
-        } catch (error) {
-            console.log(error);
+        } catch (err) {
+            console.log(err);
 
             }
     
@@ -85,7 +85,8 @@ const ChatList = () => {
 
                 {chats && chats.length > 0 &&
                     chats.map((chat) => (
-                        <div className="item" key={chat.chatId} onClick={() => handleSelect(chat)} style={{ backgroundColor: chat?.isSeen ? "transparent" : "#5183fe" }}>
+                        <div className="item" key={chat.chatId} onClick={() => handleSelect(chat)}
+                         style={{ backgroundColor: chat?.isSeen ? "transparent" : "#5183fe" }}>
                             <img
                                 src={chat.user?.avatar || "./avatar.png"}
                                 alt="Avatar"
