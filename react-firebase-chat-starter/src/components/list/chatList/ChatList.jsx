@@ -1,19 +1,18 @@
 import { useState, useEffect } from "react";
 import "./chatList.css";
 import AddUser from "./addUser/addUser";
-import { onSnapshot, getDoc, doc } from "firebase/firestore";
+import { onSnapshot, getDoc, doc, updateDoc } from "firebase/firestore";
 import { db } from "../../../lib/firebase";
 import { useUserStore } from "../../../lib/userStore";
 import { useChatStore } from "../../../lib/chatStore";
-import { use } from "react";
-
-import { updateDoc } from "firebase/firestore";
 
 const ChatList = () => {
     const [chats, setChats] = useState([]);
     const [addMode, setAddMode] = useState(false);
     const { currentUser } = useUserStore();
     const { chatId, changeChat } = useChatStore();
+    const [input, setInput] = useState("");
+
     useEffect(() => {
         if (currentUser && currentUser.id) {
             const unSub = onSnapshot(doc(db, "userchats", currentUser.id), async (res) => {
@@ -63,45 +62,48 @@ const ChatList = () => {
             changeChat(chat.chatId, chat.user);
         } catch (err) {
             console.log(err);
-
-            }
-    
-        };
-    
-        return (
-            <div className="chatList">
-                <div className="search">
-                    <div className="searchBar">
-                        <img src="./search.png" alt="Search Icon" />
-                        <input type="text" placeholder="Search" />
-                    </div>
-                    <img
-                        src={addMode ? "./minus.png" : "./plus.png"}
-                        alt="Toggle Add"
-                        className="add"
-                        onClick={() => setAddMode((prev) => !prev)}
-                    />
-                </div>
-
-                {chats && chats.length > 0 &&
-                    chats.map((chat) => (
-                        <div className="item" key={chat.chatId} onClick={() => handleSelect(chat)}
-                         style={{ backgroundColor: chat?.isSeen ? "transparent" : "#5183fe" }}>
-                            <img
-                                src={chat.user?.avatar || "./avatar.png"}
-                                alt="Avatar"
-                            />
-                            <div className="texts">
-                                <span>{chat.user?.username || "User"}</span>
-                                <p>{chat.lastMessage || "No messages yet"}</p>
-                            </div>
-                        </div>
-                    ))
-                }
-
-                {addMode && <AddUser />}
-            </div>
-        );
+        }
     };
 
-    export default ChatList;
+    const filteredChats = chats.filter((c) => 
+        c.user.username.toLowerCase().includes(input.toLowerCase()));
+
+    return (
+        <div className="chatList">
+            <div className="search">
+                <div className="searchBar">
+                    <img src="./search.png" alt="Search Icon" />
+                    <input type="text" placeholder="Search" onChange={(e) => setInput(e.target.value)}/>
+                </div>
+                <img
+                    src={addMode ? "./minus.png" : "./plus.png"}
+                    alt="Toggle Add"
+                    className="add"
+                    onClick={() => setAddMode((prev) => !prev)}
+                />
+            </div>
+
+            {chats && chats.length > 0 &&
+                filteredChats.map((chat) => (
+                    <div className="item" key={chat.chatId} onClick={() => handleSelect(chat)}
+                        style={{ backgroundColor: chat?.isSeen ? "transparent" : "#5183fe" }}>
+                        <img src={chat.user.blocked.includes(currentUser.id)
+                            ?".avatar.png"
+                            : chat.user?.avatar || "./avatar.png"} alt="Avatar" />
+                        <div className="texts">
+                            <span>{chat.user.blocked.includes(currentUser.id) ? "User" : chat.user?.username}</span>
+                            <p>
+                                {chat.lastMessage?.senderId === currentUser.id ? "Bạn: " : ""}
+                                {chat.lastMessage?.text || "Chưa có tin nhắn"}
+                            </p>
+                        </div>
+                    </div>
+                ))
+            }
+
+            {addMode && <AddUser />}
+        </div>
+    );
+};
+
+export default ChatList;
